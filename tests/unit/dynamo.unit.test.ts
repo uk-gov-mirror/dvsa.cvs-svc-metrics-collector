@@ -24,17 +24,28 @@ describe("The dynamodb class", () => {
         expect(dSpy.callCount === 4 && dSpy.calledWith(input)).toBeTruthy();
         AWSMock.restore("DynamoDB");
     });
+    it("should return with 0, if ScanOutput.Count is undefined", async () => {
+        const input: ScanInput = { TableName: "testTable" };
+        const output: ScanOutput = { Count: undefined };
+        const dSpy = sinon.fake.resolves(output);
+        AWSMock.setSDKInstance(AWS);
+        AWSMock.mock("DynamoDB", "scan", dSpy);
+        const res = await ddb.scanCount(input);
+        expect(res).toBe(0);
+        expect(dSpy.callCount === 4 && dSpy.calledWith(input)).toBeTruthy();
+        AWSMock.restore("DynamoDB");
+    });
     it("should return a count of the total visits for the day", async () => {
-       const scan = sandbox.stub(Dynamo.prototype, "scanCount").resolves(1);
-       const res = await ddb.getVisits();
-       expect(res).toBe(1);
-       expect(scan.calledOnce).toBeTruthy();
+        const scan = sandbox.stub(Dynamo.prototype, "scanCount").resolves(1);
+        const res = await ddb.getVisits();
+        expect(res).toBe(1);
+        expect(scan.calledOnce).toBeTruthy();
     });
     it("should return a count of old visits for the day", async () => {
-       const scan = sandbox.stub(Dynamo.prototype, "scanCount").resolves(1);
-       const res = await ddb.getOldVisits();
-       expect(res).toBe(1);
-       expect(scan.calledOnce).toBeTruthy();
+        const scan = sandbox.stub(Dynamo.prototype, "scanCount").resolves(1);
+        const res = await ddb.getOldVisits();
+        expect(res).toBe(1);
+        expect(scan.calledOnce).toBeTruthy();
     });
     it("should return a count of open visits", async () => {
         const scan = sandbox.stub(Dynamo.prototype, "scanCount").resolves(1);

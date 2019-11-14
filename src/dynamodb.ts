@@ -15,7 +15,7 @@ export class Dynamo {
 
     public constructor(config?: ClientConfiguration, branch?: string, numOfScanners: number = 4) {
         this.config = config || { region: process.env.AWS_REGION || "eu-west-1"};
-        this.branch = branch || (process.env.BRANCH || "local").toLocaleLowerCase();
+        this.branch = branch || process.env.BRANCH!.toLocaleLowerCase();
         this.tableName = `cvs-${this.branch.toLowerCase()}-activities`;
         this.numOfScanners = numOfScanners;
     }

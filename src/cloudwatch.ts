@@ -9,7 +9,7 @@ const AWSXRay = require("aws-xray-sdk");
 
 export class CW {
     private readonly config: cwConfig;
-    private readonly branch: string = (process.env.BRANCH || "local").toLocaleLowerCase();
+    private readonly branch: string = process.env.BRANCH!.toLocaleLowerCase();
     private readonly now: DateTime = DateTime.utc();
 
     public constructor(cwConf?: cwConfig) {
