@@ -13,7 +13,7 @@ export class CW {
     private readonly now: DateTime = DateTime.utc();
 
     public constructor(cwConf?: cwConfig) {
-        this.config = cwConf || { region: process.env.AWS_REGION || "eu-west-1", retryDelayOptions: { base: 500 } };
+        this.config = cwConf ?? { region: process.env.AWS_REGION ?? "eu-west-1", retryDelayOptions: { base: 500 } };
     }
 
     /**

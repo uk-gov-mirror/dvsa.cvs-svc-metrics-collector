@@ -14,8 +14,8 @@ export class Dynamo {
     private readonly numOfScanners: number;
 
     public constructor(config?: ClientConfiguration, branch?: string, numOfScanners: number = 4) {
-        this.config = config || { region: process.env.AWS_REGION || "eu-west-1"};
-        this.branch = branch || process.env.BRANCH!.toLocaleLowerCase();
+        this.config = config ?? { region: process.env.AWS_REGION ?? "eu-west-1"};
+        this.branch = branch ?? process.env.BRANCH!.toLocaleLowerCase();
         this.tableName = `cvs-${this.branch.toLowerCase()}-activities`;
         this.numOfScanners = numOfScanners;
     }
@@ -44,7 +44,7 @@ export class Dynamo {
             const scanInput = query;
             scanInput.Segment = scanners.length;
             scanInput.TotalSegments = this.numOfScanners;
-            scanners.push(client.scan(scanInput).promise().then((r) => r.Count || 0));
+            scanners.push(client.scan(scanInput).promise().then((r) => r.Count ?? 0));
         }
         const result = await Promise.all(scanners);
         return result.reduce((total, num) => total + num, 0);
