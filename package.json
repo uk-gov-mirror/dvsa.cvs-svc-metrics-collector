@@ -22,7 +22,7 @@
   },
   "main": "src/handler.js",
   "devDependencies": {
-    "@types/aws-lambda": "^8.10.36",
+    "@types/aws-lambda": "^8.10.37",
     "@types/jest": "^24.0.23",
     "@types/luxon": "^1.21.0",
     "@types/node": "^10.17.6",
@@ -36,14 +36,14 @@
     "ts-jest": "^24.2.0",
     "tslint": "^5.20.1",
     "tslint-jsdoc-rules": "^0.2.0",
-    "typescript": "^3.7.2"
+    "typescript": "^3.7.3"
   },
   "dependencies": {
-    "aws-lambda": "^0.1.2",
-    "aws-sdk": "^2.580.0",
+    "aws-sdk": "^2.587.0",
     "aws-xray-sdk": "^2.5.0",
-    "luxon": "^1.21.2",
+    "luxon": "^1.21.3",
     "node-gzip": "^1.1.2",
+    "re2": "^1.10.5",
     "typescript-logging": "^0.6.4"
   },
   "jestSonar": {

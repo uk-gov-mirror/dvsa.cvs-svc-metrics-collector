@@ -3,6 +3,7 @@ import { CloudWatch } from "aws-sdk";
 import { DateTime } from "luxon";
 import { cwLogger } from "./handler";
 import { CloudWatchLogsLogEvent } from "aws-lambda";
+import RE2 = require("re2");
 // @ts-ignore
 // tslint:disable-next-line:no-var-requires
 const AWSXRay = require("aws-xray-sdk");
@@ -86,7 +87,7 @@ export class CW {
         const timestamp: Date = this.now.toJSDate();
         let timeoutCount: number = 0;
         for (const logEvent of logEvents) {
-            if (/.*Task timed out.*/.test(logEvent.message)) {
+            if (new RE2(".*Task timed out.*").test(logEvent.message)) {
                 timeoutCount += 1;
             }
         }
