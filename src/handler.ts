@@ -1,4 +1,4 @@
-import { Context, CloudWatchLogsEvent, CloudWatchLogsDecodedData, CloudWatchLogsHandler } from "aws-lambda";
+import { CloudWatchLogsDecodedData, CloudWatchLogsEvent, CloudWatchLogsHandler, Context } from "aws-lambda";
 import { CW } from "./cloudwatch";
 import { Dynamo } from "./dynamodb";
 import { Category, CategoryConfiguration, CategoryServiceFactory, LogLevel } from "typescript-logging";
@@ -17,7 +17,7 @@ async function decodeEventData(data: string): Promise<CloudWatchLogsDecodedData>
 }
 
 /**
- * @param {object} event
+ * @param {CloudWatchLogsEvent} event
  * @param {Context} context
  */
 export const handler: CloudWatchLogsHandler = async (event: CloudWatchLogsEvent, context: Context): Promise<void> => {
@@ -26,8 +26,8 @@ export const handler: CloudWatchLogsHandler = async (event: CloudWatchLogsEvent,
     const cw = new CW();
     if (/\/aws\/lambda\/activities-[\w-]+/.test(log.logGroup)) {
         const dynamo = new Dynamo();
-        const visits = await Promise.all([dynamo.getVisits(), dynamo.getOldVisits(), dynamo.getOldVisits()]);
-        handlerLogger.info(await cw.sendVisits(visits[0], visits[1], visits[2]));
+        const [visits, oldVisits, openVisits] = await Promise.all([dynamo.getVisits(), dynamo.getOldVisits(), dynamo.getOpenVisits()]);
+        handlerLogger.info(await cw.sendVisits(visits, oldVisits, openVisits));
     }
     handlerLogger.info(await cw.sendTimeouts(log.logGroup, log.logEvents));
 };
