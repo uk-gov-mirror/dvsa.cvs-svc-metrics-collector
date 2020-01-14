@@ -17,7 +17,7 @@
     "package": "mkdir ${ZIP_NAME} && cp package.json yarn.lock ${ZIP_NAME} && cp -r .build/src/* ${ZIP_NAME}/ && cd ${ZIP_NAME} && yarn install --prod && rm package.json yarn.lock && zip -qr ../${ZIP_NAME}.zip . && cd .. && rm -rf ${ZIP_NAME}",
     "sonar-scanner": "yarn tslint && yarn test && sonar-scanner",
     "test": "jest -c jest.config.js",
-    "test-i": "BRANCH=local node_modules/.bin/mocha .build/tests/**/*.intTest.js",
+    "test-i": "echo 'not implemented' #jest -c jest.config.int.js",    
     "tslint": "tslint src/**/*.ts tests/**/*.ts --out .reports/lint_issues.json",
     "tools-setup": "echo 'Nothing to do'"
   },
