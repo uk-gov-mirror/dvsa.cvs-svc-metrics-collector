@@ -15,5 +15,4 @@ update_configs:
   - match:
       update_type: "security"
   commit_message:
-    prefix: "deps"
     include_scope: true
