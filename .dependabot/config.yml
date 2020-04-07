@@ -5,12 +5,14 @@ update_configs:
   update_schedule: "live"
   target_branch: "devops"
   version_requirement_updates: increase_versions
+  commit_message:
+    prefix: "[security-auto]"
   default_reviewers:
-  - "MartiUK"
   - "KHodderDVSA"
+  - "MartiUK"
   default_assignees:
-  - "MartiUK"
   - "KHodderDVSA"
+  - "MartiUK"
   allowed_updates:
   - match:
       update_type: "security"
