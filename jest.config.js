@@ -4,10 +4,9 @@ module.exports = {
     roots: [
         "<rootDir>/src",
         "<rootDir>/tests/unit",
-        "<rootDir>/tests/int"
     ],
     testRegex: ".*unit\.test\.ts",
-    moduleFileExtensions: ["js", "ts"],
+    moduleFileExtensions: ["js", "ts", "node"],
     testResultsProcessor: "jest-sonar-reporter",
     transform: {
         "^.+\\.ts$": "ts-jest"
