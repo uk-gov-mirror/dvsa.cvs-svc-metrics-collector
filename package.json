@@ -19,7 +19,8 @@
     "test": "jest -c jest.config.js",
     "test-i": "echo 'not implemented' #jest -c jest.config.int.js",
     "tslint": "tslint src/**/*.ts tests/**/*.ts --out .reports/lint_issues.json",
-    "tools-setup": "echo 'Nothing to do'"
+    "tools-setup": "echo 'Nothing to do'",
+    "build:pipeline": "echo 'Nothing to do'"
   },
   "main": "src/handler.js",
   "devDependencies": {
