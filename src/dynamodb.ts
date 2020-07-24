@@ -33,15 +33,17 @@ export class Dynamo {
    */
   private async scanDB(scanInput: ScanInput): Promise<number> {
     const client = AWSXRay.captureAWSClient(new DynamoDB(this.config));
-    let ExclusiveStartKey: DynamoDB.Key | undefined
-    let count = 0
+    let ExclusiveStartKey: DynamoDB.Key | undefined;
+    let count = 0;
     do {
-      if (ExclusiveStartKey) scanInput.ExclusiveStartKey = ExclusiveStartKey
-      const res = await client.scan(scanInput).promise()
-      ExclusiveStartKey = res.LastEvaluatedKey
-      count += res.Count ?? 0
-    } while (ExclusiveStartKey)
-    return count
+      if (ExclusiveStartKey) {
+        scanInput.ExclusiveStartKey = ExclusiveStartKey;
+      }
+      const res = await client.scan(scanInput).promise();
+      ExclusiveStartKey = res.LastEvaluatedKey;
+      count += res.Count ?? 0;
+    } while (ExclusiveStartKey);
+    return count;
   }
 
   /**********************************************************
@@ -73,9 +75,10 @@ export class Dynamo {
     const startOfDay: DateTime = this.now.startOf("day");
     const query: ScanInput = {
       TableName: this.tableName,
-      FilterExpression: "startTime >= :today",
+      FilterExpression: "startTime >= :today and activityType = :visit",
       ExpressionAttributeValues: {
-        ":today": { S: Dynamo.toCVSDate(startOfDay) }
+        ":today": { S: Dynamo.toCVSDate(startOfDay) },
+        ":visit": { S: "visit" }
       }
     };
     const result = await this.scanCount(query);
@@ -93,10 +96,11 @@ export class Dynamo {
     dynamoLogger.info(`Retrieving total open visits older than ${tenHoursAgo}`);
     const query: ScanInput = {
       TableName: this.tableName,
-      FilterExpression: "startTime <= :tenHours and endTime = :NULL",
+      FilterExpression: "startTime <= :tenHours and endTime = :NULL and activityType = :visit",
       ExpressionAttributeValues: {
         ":tenHours": { S: Dynamo.toCVSDate(tenHoursAgo) },
-        ":NULL": { NULL: true }
+        ":NULL": { NULL: true },
+        ":visit": { S: "visit" }
       }
     };
     const result = await this.scanCount(query);
@@ -113,9 +117,10 @@ export class Dynamo {
     dynamoLogger.info(`Retrieving total open visits`);
     const query: ScanInput = {
       TableName: this.tableName,
-      FilterExpression: "endTime = :NULL",
+      FilterExpression: "endTime = :NULL and activityType = :visit",
       ExpressionAttributeValues: {
-        ":NULL": { NULL: true }
+        ":NULL": { NULL: true },
+        ":visit": { S: "visit" }
       }
     };
     const result = await this.scanCount(query);
