@@ -1,6 +1,7 @@
 import { Dynamo } from "../../src/dynamodb";
 import { ScanInput } from "aws-sdk/clients/dynamodb";
 import { DynamoDB } from "aws-sdk";
+import * as os from "os";
 
 describe("The dynamodb class", () => {
   const ddb = new Dynamo();
@@ -11,8 +12,8 @@ describe("The dynamodb class", () => {
   it("should scan a dynamodb table", async () => {
     const input: ScanInput = { TableName: "testTable" };
     const res = await ddb.scanCount(input);
-    expect(res).toBe(4);
-    expect(mockFn.mock.calls.length).toBe(4);
+    expect(res).toBe(os.cpus().length);
+    expect(mockFn.mock.calls.length).toBe(os.cpus().length);
   });
   it("should return with 0, if ScanOutput.Count is undefined", async () => {
     mockFn = jest.fn().mockImplementation(() => ({ promise: () => Promise.resolve({ Count: undefined }) }));
@@ -20,7 +21,7 @@ describe("The dynamodb class", () => {
     const input: ScanInput = { TableName: "testTable" };
     const res = await ddb.scanCount(input);
     expect(res).toBe(0);
-    expect(mockFn.mock.calls.length).toBe(4);
+    expect(mockFn.mock.calls.length).toBe(os.cpus().length);
   });
   it("should return a count of the total visits for the day", async () => {
     mockFn = jest.fn().mockImplementation(() => 1);
@@ -43,5 +44,4 @@ describe("The dynamodb class", () => {
     expect(res).toBe(1);
     expect(mockFn.mock.calls.length).toBe(1);
   });
-})
-;
+});

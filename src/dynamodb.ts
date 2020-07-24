@@ -3,6 +3,7 @@ import { ClientConfiguration, ScanInput } from "aws-sdk/clients/dynamodb";
 import { DateTime } from "luxon";
 import { dynamoLogger } from "./handler";
 import AWSXRay from "aws-xray-sdk";
+import * as os from "os";
 
 export class Dynamo {
   private readonly config: ClientConfiguration;
@@ -11,7 +12,7 @@ export class Dynamo {
   private readonly now: DateTime = DateTime.utc();
   private readonly numOfScanners: number;
 
-  public constructor(config?: ClientConfiguration, numOfScanners: number = 4) {
+  public constructor(config?: ClientConfiguration, numOfScanners: number = os.cpus().length) {
     this.config = config ?? { region: process.env.AWS_REGION ?? "eu-west-1" };
     this.tableName = `cvs-${this.branch.toLowerCase()}-activities`;
     this.numOfScanners = numOfScanners;
@@ -26,6 +27,23 @@ export class Dynamo {
     return date.toISO({ includeOffset: false }) + "Z";
   }
 
+  /**
+   * Returns the count of records as per the input
+   * @param {ScanInput} scanInput The input for the scan
+   */
+  private async scanDB(scanInput: ScanInput): Promise<number> {
+    const client = AWSXRay.captureAWSClient(new DynamoDB(this.config));
+    let ExclusiveStartKey: DynamoDB.Key | undefined
+    let count = 0
+    do {
+      if (ExclusiveStartKey) scanInput.ExclusiveStartKey = ExclusiveStartKey
+      const res = await client.scan(scanInput).promise()
+      ExclusiveStartKey = res.LastEvaluatedKey
+      count += res.Count ?? 0
+    } while (ExclusiveStartKey)
+    return count
+  }
+
   /**********************************************************
    * Runs a scan against a DynamoDB table specified in {@link ScanInput} and returns the count of records returned.
    * @public
@@ -35,16 +53,14 @@ export class Dynamo {
    * @returns {Promise<number>} Count of records from the scan.
    */
   public async scanCount(query: ScanInput): Promise<number> {
-    const client = AWSXRay.captureAWSClient(new DynamoDB(this.config));
-    const scanners: Array<Promise<number>> = [];
+    const scanners: Promise<number>[] = [];
     while (scanners.length < this.numOfScanners) {
       const scanInput = query;
       scanInput.Segment = scanners.length;
       scanInput.TotalSegments = this.numOfScanners;
-      scanners.push(client.scan(scanInput).promise().then((r) => r.Count ?? 0));
+      scanners.push(this.scanDB(scanInput));
     }
-    const result = await Promise.all(scanners);
-    return result.reduce((total, num) => total + num, 0);
+    return (await Promise.all(scanners)).reduce((total, num) => total + num, 0);
   }
 
   /**
