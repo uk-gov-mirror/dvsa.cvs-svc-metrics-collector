@@ -1,21 +1,28 @@
 import { DynamoDB } from "aws-sdk";
 import { ClientConfiguration, ScanInput } from "aws-sdk/clients/dynamodb";
 import { DateTime } from "luxon";
-import { dynamoLogger } from "./handler";
 import AWSXRay, { Subsegment } from "aws-xray-sdk";
 import * as os from "os";
+import { Logger } from "tslog";
 
 export class Dynamo {
   private readonly config: ClientConfiguration;
+
   private readonly tableName: string;
+
   private readonly branch: string = (process.env.BRANCH ?? "local").toLocaleLowerCase();
+
   private readonly now: DateTime = DateTime.utc();
+
   private readonly numOfScanners: number;
 
-  public constructor(config?: ClientConfiguration, numOfScanners: number = os.cpus().length) {
+  private logger: Logger;
+
+  public constructor(handlerLogger: Logger, config?: ClientConfiguration, numOfScanners: number = os.cpus().length) {
     this.config = config ?? { region: process.env.AWS_REGION ?? "eu-west-1" };
     this.tableName = `cvs-${this.branch.toLowerCase()}-activities`;
     this.numOfScanners = numOfScanners;
+    this.logger = handlerLogger.getChildLogger({ name: "DynamoDB" });
   }
 
   /**
@@ -24,8 +31,8 @@ export class Dynamo {
    * @param {DateTime} date A Luxon Datetime.
    * @returns {string} The formatted date
    */
-  public static async toCVSDate(date: DateTime): Promise<string> {
-    return date.toISO({ includeOffset: false }) + "Z";
+  public static toCVSDate(date: DateTime): string {
+    return `${date.toISO({ includeOffset: false })}Z`;
   }
 
   /**
@@ -40,11 +47,12 @@ export class Dynamo {
     const client = AWSXRay.captureAWSClient(new DynamoDB(this.config));
     let ExclusiveStartKey: DynamoDB.Key | undefined;
     let count = 0;
+    const input = scanInput;
     do {
       if (ExclusiveStartKey) {
-        scanInput.ExclusiveStartKey = ExclusiveStartKey;
+        input.ExclusiveStartKey = ExclusiveStartKey;
       }
-      const res = await client.scan(scanInput).promise();
+      const res = await client.scan(input).promise();
       ExclusiveStartKey = res.LastEvaluatedKey;
       count += res.Count ?? 0;
     } while (ExclusiveStartKey);
@@ -63,7 +71,7 @@ export class Dynamo {
    */
   public async scanCount(query: ScanInput): Promise<number> {
     const scanners: Promise<number>[] = [];
-    for (let i = 0; i < this.numOfScanners; i++) {
+    for (let i = 0; i < this.numOfScanners; i += 1) {
       const scanInput = query;
       scanInput.Segment = i;
       scanInput.TotalSegments = this.numOfScanners;
@@ -81,21 +89,28 @@ export class Dynamo {
    * @returns {number} Number of visits.
    */
   public async getVisits(parentSubSeg?: Subsegment): Promise<number> {
-    const visitsSS = parentSubSeg?.addNewSubsegment("getVisits");
-    dynamoLogger.info("Retrieving total visits today");
+    let visitsSS;
+    if (parentSubSeg) {
+      visitsSS = parentSubSeg.addNewSubsegment("getVisits");
+    }
+    this.logger.info("Retrieving total visits today");
     const startOfDay: DateTime = this.now.startOf("day");
     const query: ScanInput = {
       TableName: this.tableName,
       FilterExpression: "startTime >= :today and activityType = :visit",
       ExpressionAttributeValues: {
-        ":today": { S: await Dynamo.toCVSDate(startOfDay) },
+        ":today": { S: Dynamo.toCVSDate(startOfDay) },
         ":visit": { S: "visit" },
       },
     };
-    visitsSS?.addMetadata("query", query);
+    if (visitsSS) {
+      visitsSS.addMetadata("query", query);
+    }
     const result = await this.scanCount(query);
-    dynamoLogger.info(`Total visits for ${startOfDay}: ${result}`);
-    visitsSS?.close();
+    this.logger.info(`Total visits for ${startOfDay.toISO()}: ${result}`);
+    if (visitsSS) {
+      visitsSS.close();
+    }
     return result;
   }
 
@@ -110,19 +125,19 @@ export class Dynamo {
   public async getOldVisits(parentSubSeg?: Subsegment): Promise<number> {
     const oldVisitsSS = parentSubSeg?.addNewSubsegment("getOldVisits");
     const tenHoursAgo: DateTime = this.now.minus({ hours: 10 });
-    dynamoLogger.info(`Retrieving total open visits older than ${tenHoursAgo}`);
+    this.logger.info(`Retrieving total open visits older than ${tenHoursAgo.toISO()}`);
     const query: ScanInput = {
       TableName: this.tableName,
       FilterExpression: "startTime <= :tenHours and endTime = :NULL and activityType = :visit",
       ExpressionAttributeValues: {
-        ":tenHours": { S: await Dynamo.toCVSDate(tenHoursAgo) },
+        ":tenHours": { S: Dynamo.toCVSDate(tenHoursAgo) },
         ":NULL": { NULL: true },
         ":visit": { S: "visit" },
       },
     };
     oldVisitsSS?.addMetadata("query", query);
     const result = await this.scanCount(query);
-    dynamoLogger.info(`Total old visits older than ${tenHoursAgo}: ${result}`);
+    this.logger.info(`Total old visits older than ${tenHoursAgo.toISO()}: ${result}`);
     oldVisitsSS?.close();
     return result;
   }
@@ -137,7 +152,7 @@ export class Dynamo {
    */
   public async getOpenVisits(parentSubSeg?: Subsegment): Promise<number> {
     const openVisitsSS = parentSubSeg?.addNewSubsegment("getOpenVisits");
-    dynamoLogger.info(`Retrieving total open visits`);
+    this.logger.info("Retrieving total open visits");
     const query: ScanInput = {
       TableName: this.tableName,
       FilterExpression: "endTime = :NULL and activityType = :visit",
@@ -148,7 +163,7 @@ export class Dynamo {
     };
     openVisitsSS?.addMetadata("query", query);
     const result = await this.scanCount(query);
-    dynamoLogger.info(`Total open visits: ${result}`);
+    this.logger.info(`Total open visits: ${result}`);
     openVisitsSS?.close();
     return result;
   }

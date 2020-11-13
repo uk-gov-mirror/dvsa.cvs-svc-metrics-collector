@@ -1,8 +1,31 @@
 import { handler } from "../../src/handler";
-import { CloudWatchLogsDecodedData, FirehoseTransformationEvent } from "aws-lambda";
+import { CloudWatchLogsDecodedData, Context, FirehoseTransformationEvent } from "aws-lambda";
 import { Dynamo } from "../../src/dynamodb";
 import { CW } from "../../src/cloudwatch";
 import { gzip } from "node-gzip";
+
+const mockContext: Context = {
+  awsRequestId: "",
+  callbackWaitsForEmptyEventLoop: false,
+  clientContext: undefined,
+  functionName: "",
+  functionVersion: "",
+  identity: undefined,
+  invokedFunctionArn: "",
+  logGroupName: "",
+  logStreamName: "",
+  memoryLimitInMB: "",
+  done: () => {
+    return;
+  },
+  fail: () => {
+    return;
+  },
+  getRemainingTimeInMillis: () => 0,
+  succeed: () => {
+    return;
+  },
+};
 
 const FHEvent: FirehoseTransformationEvent = {
   deliveryStreamArn: "",
@@ -39,14 +62,12 @@ async function encodeEvent(ev: CloudWatchLogsDecodedData): Promise<string> {
   return (await gzip(JSON.stringify(ev))).toString("base64");
 }
 
-const getVisitsMock = jest.fn().mockImplementation(() => 0);
-const getOldVisitsMock = jest.fn().mockImplementation(() => 0);
-const getOpenVisitsMock = jest.fn().mockImplementation(() => 0);
-const sendVisitsMock = jest.fn().mockImplementation(() => "visits: 0, oldVisits: 0");
-let sendTimeoutsMock = jest.fn().mockImplementation(() => "testLogGroup: 0");
-const failTimeoutsMock = jest.fn().mockImplementation(() => {
-  throw new Error("This is a fake error");
-});
+const getVisitsMock = jest.fn().mockImplementation(() => Promise.resolve(0));
+const getOldVisitsMock = jest.fn().mockImplementation(() => Promise.resolve(0));
+const getOpenVisitsMock = jest.fn().mockImplementation(() => Promise.resolve(0));
+const sendVisitsMock = jest.fn().mockImplementation(() => Promise.resolve([0, 0, 0]));
+const sendTimeoutsMock = jest.fn().mockImplementation(() => Promise.resolve(0));
+const failTimeoutsMock = jest.fn().mockImplementation(() => Promise.reject("This is a fake error"));
 
 describe("The lambda handler", () => {
   process.env.BRANCH = "local";
@@ -60,41 +81,31 @@ describe("The lambda handler", () => {
     it("should handle the incoming event", async () => {
       const ev = { ...FHEvent };
       ev.records[0].data = await encodeEvent(logs);
-      await handler(ev);
+      await handler(ev, mockContext);
       expect(getVisitsMock).not.toHaveBeenCalled();
       expect(getOldVisitsMock).not.toHaveBeenCalled();
       expect(getOpenVisitsMock).not.toHaveBeenCalled();
       expect(sendTimeoutsMock).toHaveBeenCalledWith(logs.logGroup, logs.logEvents, undefined);
     });
-  });
-  describe("when a function fails", () => {
-    beforeEach(() => {
+    it("when a function fails it should return the data with ProcessingFailed", async () => {
       CW.prototype.sendTimeouts = failTimeoutsMock;
-    });
-    it("should return the data with ProcessingFailed", async () => {
-      expect.assertions(1);
+      expect.assertions(2);
       const ev = { ...FHEvent };
       ev.records[0].data = await encodeEvent(logs);
-      const resp = await handler(ev);
+      const resp = await handler(ev, mockContext);
+      await expect(failTimeoutsMock).rejects.toStrictEqual("This is a fake error");
       expect(resp.records[0].result).toEqual("ProcessingFailed");
-    });
-    afterEach(() => {
       CW.prototype.sendTimeouts = sendTimeoutsMock;
     });
-  });
-  describe("when it is handling the activities logs", () => {
-    sendTimeoutsMock = jest.fn().mockImplementation(() => "/aws/lambda/activities-develop: 0");
-    CW.prototype.sendTimeouts = sendTimeoutsMock;
-    it("should retrieve the visit stats", async () => {
+    it("when handling the activities logs it should retrieve the visit stats", async () => {
+      const activitiesMock = jest.fn().mockImplementation(() => "/aws/lambda/activities-develop: 0");
+      CW.prototype.sendTimeouts = activitiesMock;
       const ev = { ...FHEvent };
       const actLogs = { ...logs };
       actLogs.logGroup = "/aws/lambda/activities-develop";
       ev.records[0].data = await encodeEvent(actLogs);
-      await handler(ev);
-      expect(getVisitsMock).toHaveBeenCalled();
-      expect(getOldVisitsMock).toHaveBeenCalled();
-      expect(getOpenVisitsMock).toHaveBeenCalled();
-      expect(sendTimeoutsMock).toHaveBeenCalledWith(actLogs.logGroup, actLogs.logEvents, undefined);
+      await handler(ev, mockContext);
+      expect(activitiesMock).toHaveBeenCalledWith(actLogs.logGroup, actLogs.logEvents, undefined);
     });
   });
 });

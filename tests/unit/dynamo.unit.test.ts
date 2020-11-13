@@ -2,9 +2,10 @@ import { Dynamo } from "../../src/dynamodb";
 import { ScanInput } from "aws-sdk/clients/dynamodb";
 import { DynamoDB } from "aws-sdk";
 import * as os from "os";
+import { Logger } from "tslog";
 
 describe("The dynamodb class", () => {
-  const ddb = new Dynamo();
+  const ddb = new Dynamo(new Logger({ name: "dynamoUnit" }));
   jest.mock("aws-sdk/clients/dynamodb");
   let mockFn = jest.fn().mockImplementation(() => ({ promise: () => Promise.resolve({ Count: 1 }) }));
   DynamoDB.prototype.scan = mockFn;
