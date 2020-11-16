@@ -1,4 +1,7 @@
-import { CloudWatchLogsDecodedData, Context, FirehoseTransformationEvent, FirehoseTransformationResult, } from "aws-lambda";
+import {
+  CloudWatchLogsDecodedData, Context, FirehoseTransformationEvent, FirehoseTransformationResult,
+// eslint-disable-next-line import/no-extraneous-dependencies
+} from "aws-lambda";
 import { Logger } from "tslog";
 import { ungzip } from "node-gzip";
 import AWSXRay from "aws-xray-sdk";
