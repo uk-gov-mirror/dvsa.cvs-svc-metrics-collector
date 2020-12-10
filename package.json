@@ -19,6 +19,7 @@
     "test": "jest -c jest.config.js",
     "test-i": "echo 'not implemented' #jest -c jest.config.int.js",
     "tslint": "tslint src/**/*.ts tests/**/*.ts --out .reports/lint_issues.json",
+    "security-checks": "npm audit --audit-level=critical && git secrets --register-aws && git secrets --scan && git log -p | scanrepo",
     "tools-setup": "echo 'Nothing to do'"
   },
   "main": "src/handler.js",
