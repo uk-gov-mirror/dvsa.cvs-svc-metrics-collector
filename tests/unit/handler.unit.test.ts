@@ -1,12 +1,23 @@
 import { handler } from "../../src/handler";
-import { CloudWatchLogsDecodedData } from "aws-lambda";
-import { gzip } from "node-gzip";
+import { CloudWatchLogsDecodedData, FirehoseTransformationEvent } from "aws-lambda";
 import { Dynamo } from "../../src/dynamodb";
 import { CW } from "../../src/cloudwatch";
-import mockContext = require("aws-lambda-mock-context");
+import { gzip } from "node-gzip";
 
+const FHEvent: FirehoseTransformationEvent = {
+  deliveryStreamArn: "",
+  invocationId: "",
+  region: "",
+  records: [
+    {
+      recordId: "",
+      approximateArrivalTimestamp: 0,
+      data: "",
+    },
+  ],
+};
 
-const event: CloudWatchLogsDecodedData = {
+const logs: CloudWatchLogsDecodedData = {
   messageType: "DATA_MESSAGE",
   owner: "123456789123",
   logGroup: "testLogGroup",
@@ -14,11 +25,17 @@ const event: CloudWatchLogsDecodedData = {
   subscriptionFilters: ["testFilter"],
   logEvents: [
     { id: "eventId1", timestamp: 1440442987000, message: "[ERROR] First test message" },
-    { id: "eventId2", timestamp: 1440442987001, message: "[ERROR] Second test message" }
-  ]
+    { id: "eventId2", timestamp: 1440442987001, message: "[ERROR] Second test message" },
+  ],
 };
 
-async function encodeEvent(ev: CloudWatchLogsDecodedData) {
+/**
+ * Encodes the test event as if it was from Firehose
+ *
+ * @param {CloudWatchLogsDecodedData} ev The log data to be encoded
+ * @returns {string} The encoded log data
+ */
+async function encodeEvent(ev: CloudWatchLogsDecodedData): Promise<string> {
   return (await gzip(JSON.stringify(ev))).toString("base64");
 }
 
@@ -27,10 +44,12 @@ const getOldVisitsMock = jest.fn().mockImplementation(() => 0);
 const getOpenVisitsMock = jest.fn().mockImplementation(() => 0);
 const sendVisitsMock = jest.fn().mockImplementation(() => "visits: 0, oldVisits: 0");
 let sendTimeoutsMock = jest.fn().mockImplementation(() => "testLogGroup: 0");
+const failTimeoutsMock = jest.fn().mockImplementation(() => {
+  throw new Error("This is a fake error");
+});
 
 describe("The lambda handler", () => {
   process.env.BRANCH = "local";
-  const ctx = mockContext();
   Dynamo.prototype.getVisits = getVisitsMock;
   Dynamo.prototype.getOldVisits = getOldVisitsMock;
   Dynamo.prototype.getOpenVisits = getOpenVisitsMock;
@@ -39,25 +58,43 @@ describe("The lambda handler", () => {
 
   describe("with a valid event", () => {
     it("should handle the incoming event", async () => {
-      await handler({ awslogs: { data: await encodeEvent(event) } }, ctx, () => void 0);
+      const ev = { ...FHEvent };
+      ev.records[0].data = await encodeEvent(logs);
+      await handler(ev);
       expect(getVisitsMock).not.toHaveBeenCalled();
       expect(getOldVisitsMock).not.toHaveBeenCalled();
       expect(getOpenVisitsMock).not.toHaveBeenCalled();
-      expect(sendTimeoutsMock).toHaveBeenCalledWith(event.logGroup, event.logEvents);
+      expect(sendTimeoutsMock).toHaveBeenCalledWith(logs.logGroup, logs.logEvents, undefined);
+    });
+  });
+  describe("when a function fails", () => {
+    beforeEach(() => {
+      CW.prototype.sendTimeouts = failTimeoutsMock;
+    });
+    it("should return the data with ProcessingFailed", async () => {
+      expect.assertions(1);
+      const ev = { ...FHEvent };
+      ev.records[0].data = await encodeEvent(logs);
+      const resp = await handler(ev);
+      expect(resp.records[0].result).toEqual("ProcessingFailed");
+    });
+    afterEach(() => {
+      CW.prototype.sendTimeouts = sendTimeoutsMock;
     });
   });
   describe("when it is handling the activities logs", () => {
-    const act: CloudWatchLogsDecodedData = { ...event };
-    act.logGroup = "/aws/lambda/activities-develop";
     sendTimeoutsMock = jest.fn().mockImplementation(() => "/aws/lambda/activities-develop: 0");
     CW.prototype.sendTimeouts = sendTimeoutsMock;
     it("should retrieve the visit stats", async () => {
-      await handler({ awslogs: { data: await encodeEvent(act) } }, ctx, () => void 0);
+      const ev = { ...FHEvent };
+      const actLogs = { ...logs };
+      actLogs.logGroup = "/aws/lambda/activities-develop";
+      ev.records[0].data = await encodeEvent(actLogs);
+      await handler(ev);
       expect(getVisitsMock).toHaveBeenCalled();
       expect(getOldVisitsMock).toHaveBeenCalled();
       expect(getOpenVisitsMock).toHaveBeenCalled();
-      expect(sendTimeoutsMock).toHaveBeenCalledWith(act.logGroup, act.logEvents);
+      expect(sendTimeoutsMock).toHaveBeenCalledWith(actLogs.logGroup, actLogs.logEvents, undefined);
     });
   });
 });
-
