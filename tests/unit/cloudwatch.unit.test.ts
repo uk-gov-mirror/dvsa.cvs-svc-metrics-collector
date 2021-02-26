@@ -6,7 +6,9 @@ describe("The CloudWatch class", () => {
   const cw = new CW(new Logger({ name: "cloudwatchUnit" }));
   jest.mock("aws-sdk/clients/cloudwatch");
   const mockFn = jest.fn().mockImplementation(() => ({
-    promise: () => {}
+    promise: () => {
+      return;
+    },
   }));
   CloudWatch.prototype.putMetricData = mockFn;
   process.env.BRANCH = "local";

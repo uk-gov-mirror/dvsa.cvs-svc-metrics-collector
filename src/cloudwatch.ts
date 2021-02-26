@@ -1,6 +1,5 @@
 import CloudWatch, { ClientConfiguration as cwConfig, PutMetricDataInput } from "aws-sdk/clients/cloudwatch";
 import { DateTime } from "luxon";
-// eslint-disable-next-line import/no-extraneous-dependencies
 import { CloudWatchLogsLogEvent } from "aws-lambda";
 import AWSXRay, { Subsegment } from "aws-xray-sdk";
 import { Logger } from "tslog";

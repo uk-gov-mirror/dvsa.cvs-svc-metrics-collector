@@ -1,7 +1,4 @@
-import {
-  CloudWatchLogsDecodedData, Context, FirehoseTransformationEvent, FirehoseTransformationResult,
-// eslint-disable-next-line import/no-extraneous-dependencies
-} from "aws-lambda";
+import { CloudWatchLogsDecodedData, Context, FirehoseTransformationEvent, FirehoseTransformationResult } from "aws-lambda";
 import { Logger } from "tslog";
 import { ungzip } from "node-gzip";
 import AWSXRay from "aws-xray-sdk";
@@ -34,9 +31,7 @@ export const handler = async (event: FirehoseTransformationEvent, context: Conte
   try {
     const decodeSS = AWSXRay.getSegment()?.addNewSubsegment("decodeEvent");
     logger.info(`context: ${JSON.stringify(context)}`);
-    const logs: CloudWatchLogsDecodedData[] = await Promise.all(
-      event.records.map((record) => decodeEventData(record.data)),
-    );
+    const logs: CloudWatchLogsDecodedData[] = await Promise.all(event.records.map((record) => decodeEventData(record.data)));
     decodeSS?.addMetadata("decodedEvent", logs);
     decodeSS?.close();
     const cw = new CW(logger);
