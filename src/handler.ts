@@ -6,7 +6,7 @@ import RE2 from "re2";
 import { Dynamo } from "./dynamodb";
 import { CW } from "./cloudwatch";
 
-export const logger = new Logger({ name: "Handler" });
+export const logger = new Logger({ name: "Handler", minLevel: "warn" });
 
 /**
  * Decodes the base64 event data and decompresses it.
