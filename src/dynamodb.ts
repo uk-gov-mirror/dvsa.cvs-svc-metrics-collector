@@ -48,14 +48,17 @@ export class Dynamo {
     let ExclusiveStartKey: DynamoDB.Key | undefined;
     let count = 0;
     const input = scanInput;
-    do {
+    while (true) {
       if (ExclusiveStartKey) {
         input.ExclusiveStartKey = ExclusiveStartKey;
       }
       const res = await client.scan(input).promise();
-      ExclusiveStartKey = res.LastEvaluatedKey;
       count += res.Count ?? 0;
-    } while (ExclusiveStartKey);
+      ExclusiveStartKey = res.LastEvaluatedKey;
+      if (!ExclusiveStartKey) {
+        break;
+      }
+    }
     return count;
   }
 

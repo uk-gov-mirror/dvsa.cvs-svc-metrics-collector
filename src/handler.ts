@@ -1,12 +1,14 @@
 import { CloudWatchLogsDecodedData, Context, FirehoseTransformationEvent, FirehoseTransformationResult } from "aws-lambda";
-import { Logger } from "tslog";
+import { ISettingsParam, Logger } from "tslog";
 import { ungzip } from "node-gzip";
 import AWSXRay from "aws-xray-sdk";
 import RE2 from "re2";
 import { Dynamo } from "./dynamodb";
 import { CW } from "./cloudwatch";
+const isRunOnAWS = !!(process.env.LAMBDA_TASK_ROOT || process.env.AWS_EXECUTION_ENV);
 
-export const logger = new Logger({ name: "Handler", minLevel: "warn" });
+const logConf: ISettingsParam = isRunOnAWS ? { minLevel: "warn", type: "json" } : {};
+export const logger = new Logger({ name: "Handler", ...logConf });
 
 /**
  * Decodes the base64 event data and decompresses it.
@@ -30,18 +32,22 @@ async function decodeEventData(data: string): Promise<CloudWatchLogsDecodedData>
 export const handler = async (event: FirehoseTransformationEvent, context: Context): Promise<FirehoseTransformationResult> => {
   try {
     const decodeSS = AWSXRay.getSegment()?.addNewSubsegment("decodeEvent");
-    logger.info(`context: ${JSON.stringify(context)}`);
+    logger.debug(`context: ${JSON.stringify(context)}`);
+    // Decode (unwrap) cloudwatch log data out of firehose event.
     const logs: CloudWatchLogsDecodedData[] = await Promise.all(event.records.map((record) => decodeEventData(record.data)));
     decodeSS?.addMetadata("decodedEvent", logs);
     decodeSS?.close();
+
     const cw = new CW(logger);
     const promises: Promise<number | [number, number, number]>[] = [];
     const activityPattern = new RE2(/\/aws\/lambda\/activities-[\w-]+/);
+
     const sendMetricsSS = AWSXRay.getSegment()?.addNewSubsegment("sendMetrics");
     // Prevent activities metrics being sent more than once.
     let activitiesSent = false;
     logs.forEach((log) => {
       if (!activitiesSent && activityPattern.test(log.logGroup)) {
+        // Send visit metrics.
         const visitsSS = AWSXRay.getSegment()?.addNewSubsegment("getVisits");
         const dynamo = new Dynamo(logger);
         promises.push(cw.sendVisits(dynamo.getVisits(visitsSS), dynamo.getOldVisits(visitsSS), dynamo.getOpenVisits(visitsSS), sendMetricsSS));
@@ -50,8 +56,10 @@ export const handler = async (event: FirehoseTransformationEvent, context: Conte
       }
       promises.push(cw.sendTimeouts(log.logGroup, log.logEvents, sendMetricsSS));
     });
+
     await Promise.all(promises);
     sendMetricsSS?.close();
+    // Return data to firehose.
     return {
       records: event.records.map((record) => ({
         recordId: record.recordId,
@@ -61,7 +69,7 @@ export const handler = async (event: FirehoseTransformationEvent, context: Conte
     } as FirehoseTransformationResult;
   } catch (e) {
     logger.error("Handler error:", e);
-    logger.info(JSON.stringify(event));
+    logger.debug(JSON.stringify(event));
     AWSXRay.getSegment()?.addError(e);
     return {
       records: event.records.map((record) => ({
